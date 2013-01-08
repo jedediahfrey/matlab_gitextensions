@@ -1,4 +1,4 @@
-function git(varargin)
+function varargout=git(varargin)
 %git Control GitExtensions from within MATLAB.
 % This is meant to serve as a half way point between the full git bash
 % and TorgoiseGit. It is intended for users that prefer to be able to
@@ -72,6 +72,25 @@ if ~ispref('git','sh_path') || ... % If the preference is not set.
         setpref('git','sh_path',fullfile(pathname,filename));
     end
 end
+if ~ispref('git','git_path') || ... % If the preference is not set.
+        ~exist(getpref('git','git_path'),'file') % Or the old path no longer exists
+    path1='C:\Program Files (x86)\Git\bin\git.exe';
+    path2='C:\Program Files\Git\bin\git.exe';
+    if exist(path1,'file')
+        setpref('git','git_path',path1);
+        disp('git.exe found and preferences saved');
+    elseif exist(path2,'file')
+        setpref('git','git_path',path2);
+        disp('git.exe found and preferences saved');
+    else
+        [filename, pathname] = uigetfile('git.exe', 'git.exe not automatically found. Select it:');
+        if filename==0
+            warning('git:canceled','User canceled executable selection');
+            return;
+        end
+        setpref('git','git_path',fullfile(pathname,filename));
+    end
+end
 % If nothing is given, show help and warn that a command is needed.
 if nargin<1
     help(mfilename);
@@ -87,7 +106,9 @@ argument='';
 switch command
     % Arguments that take the [file] or [path] optonally.
     case {'browse','blame','clone','filehistory','fileeditor','openrepo','revert'}
-        if nargin==2
+        if nargin<2
+            argument=pwd;
+        else
             argument=abspath(varargin{2});
         end
     case 'init'
@@ -96,6 +117,19 @@ switch command
         else
             argument=abspath(varargin{2});
         end
+    case {'log','status'}
+        cmd=sprintf('"%s" %s',getpref('git','git_path'),command);
+        dos(cmd,'-echo');
+        return;
+    case {'lasthash'}
+        cmd=sprintf('"%s" rev-parse HEAD',getpref('git','git_path'));
+        [~,r]=dos(cmd);
+        if nargout==1
+            varargout{1}=r;
+        else
+            disp(r);
+        end
+        return;
     case 'bash'
         %% Bash
         % Not actually GitExtensions, but the GitBash from the Git package. Quick
