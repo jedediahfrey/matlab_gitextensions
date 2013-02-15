@@ -5,11 +5,6 @@ function varargout=git(varargin)
 % manipulate git from the MATLAB prompt but also like the added usefullness
 % of the GitExtensions GUI.
 %
-% Note:
-%   Before commits the script will save all open *.m files and *.mdl files.
-%   Before checkouts the script will close all open *.m files and *.mdl
-%   files. (The script can be edited to disable these features).
-%
 % If you want a full command line version there are other
 % wrappers for just the git command.
 %
@@ -32,63 +27,40 @@ CLOSE_ON_CHECKOUT='ask'; % Anytime 'git checkout' is run it closes all *.m and *
 if ~ispc
     error('GitExtensions is only available for Windows machines');
 end
-
-% If the user doesn't have git setup
-if ~ispref('git','gitExtensions_path') || ... % If the preference is not set.,
-        ~exist(getpref('git','gitExtensions_path'),'file') % Or the old path no longer exists
-    path1='C:\Program Files\GitExtensions\GitExtensions.exe';
-    path2='C:\Program Files (x86)\GitExtensions\GitExtensions.exe';
-    if exist(path1,'file')
-        setpref('git','gitExtensions_path',path1);
-        disp('GitExtensions.exe found and preferences saved');
-    elseif exist(path2,'file')
-        setpref('git','gitExtensions_path',path2);
-        disp('GitExtensions.exe found and preferences saved');
-    else
-        [filename, pathname] = uigetfile('GitExtensions.exe', 'GitExtensions.exe not automatically found. Select it:');
-        if filename==0
-            warning('git:canceled','User canceled executable selection');
-            return;
+% Paths for all required files.
+paths.gitExtensions={'C:\Program Files\GitExtensions\GitExtensions.exe', ...
+    'C:\Program Files (x86)\GitExtensions\GitExtensions.exe'};
+paths.sh={'C:\Program Files (x86)\Git\bin\sh.exe', ...
+    'C:\Program Files\Git\bin\sh.exe';};
+paths.git={'C:\Program Files (x86)\Git\bin\git.exe',...
+    'C:\Program Files\Git\bin\git.exe'};
+% Required programs
+progs=fieldnames(paths);
+progs=reshape(progs,1,numel(progs));
+script=mfilename;
+for prog=progs
+    prog=prog{1};
+    if ~ispref(script,prog) || ... % if the preference is not set.
+            ~exist(getpref(script,prog),'file') % or the old path no longer exists
+        found=false;
+        for path=paths.(prog)
+            if exist(path{1},'file')
+                setpref(script,prog,path{1});
+                [~,n,e]=fileparts(path{1});
+                fprintf('%s%s found and preferences saved (%s)\n',n,e,path{1});
+                found=true;
+                break;
+            end
         end
-        setpref('git','gitExtensions_path',fullfile(pathname,filename));
-    end
-end
-if ~ispref('git','sh_path') || ... % If the preference is not set.
-        ~exist(getpref('git','sh_path'),'file') % Or the old path no longer exists
-    path1='C:\Program Files (x86)\Git\bin\sh.exe';
-    path2='C:\Program Files\Git\bin\sh.exe';
-    if exist(path1,'file')
-        setpref('git','sh_path',path1);
-        disp('sh.exe found and preferences saved');
-    elseif exist(path2,'file')
-        setpref('git','sh_path',path2);
-        disp('sh.exe found and preferences saved');
-    else
-        [filename, pathname] = uigetfile('sh.exe', 'sh.exe not automatically found. Select it:');
-        if filename==0
-            warning('git:canceled','User canceled executable selection');
-            return;
+        if ~found
+            [~,n]=fileparts(path{1});
+            [filename, pathname] = uigetfile(n, sprintf('%s not automatically found. Please select it:',n));
+            if filename==0
+                warning('git:canceled','User canceled executable selection');
+                return;
+            end
+            setpref(script,prog,fullfile(pathname,filename));
         end
-        setpref('git','sh_path',fullfile(pathname,filename));
-    end
-end
-if ~ispref('git','git_path') || ... % If the preference is not set.
-        ~exist(getpref('git','git_path'),'file') % Or the old path no longer exists
-    path1='C:\Program Files (x86)\Git\bin\git.exe';
-    path2='C:\Program Files\Git\bin\git.exe';
-    if exist(path1,'file')
-        setpref('git','git_path',path1);
-        disp('git.exe found and preferences saved');
-    elseif exist(path2,'file')
-        setpref('git','git_path',path2);
-        disp('git.exe found and preferences saved');
-    else
-        [filename, pathname] = uigetfile('git.exe', 'git.exe not automatically found. Select it:');
-        if filename==0
-            warning('git:canceled','User canceled executable selection');
-            return;
-        end
-        setpref('git','git_path',fullfile(pathname,filename));
     end
 end
 % If nothing is given, show help and warn that a command is needed.
@@ -96,33 +68,36 @@ if nargin<1
     help(mfilename);
     warning('git:command','You must give at least one command\nSee: http://git-scm.com/documentation');
     return;
-else
-    % Else grab the first input as a command.
-    command=varargin{1};
+end
+% Else grab the first input as a command.
+command=varargin{1};
+args='';
+for i=2:nargin
+    % If the input argument has spaces, escape it
+    if strfind(varargin{i},' ')
+        args=sprintf('%s "%s"',args,varargin{i});
+    else
+        args=sprintf('%s %s',args,varargin{i});
+    end
 end
 % List of known working commands and any modifications that must be made to
 % to the arguments before calling GitExtensions.exe
-argument='';
 switch command
     % Arguments that take the [file] or [path] optonally.
-    case {'browse','blame','clone','filehistory','fileeditor','openrepo','revert'}
+    case {'browse','blame','clone','filehistory','fileeditor','init','openrepo','revert'}
+        exec=getpref(mfilename,'gitExtensions');
         if nargin<2
-            argument=pwd;
+            args=pwd;
         else
-            argument=abspath(varargin{2});
+            args=abspath(varargin{2});
         end
-    case 'init'
-        if nargin<2
-            argument=pwd;
-        else
-            argument=abspath(varargin{2});
-        end
-    case {'log','status'}
-        cmd=sprintf('"%s" %s',getpref('git','git_path'),command);
-        dos(cmd,'-echo');
-        return;
+    case {'about','add','apply','applypatch','branch','checkout','checkoutbranch','checkoutrevision','cherry', ...
+            'cleanup','commit','formatpatch','gitbash','gitignore','merge','mergeconflicts','mergetool','pull','push',...
+            'rebase','remotes','searchfile','settings','stash','synchronize','tag','viewdiff'}
+        % The rest of the git commands.
+        exec=getpref(mfilename,'gitExtensions');
     case {'lasthash'}
-        cmd=sprintf('"%s" rev-parse HEAD',getpref('git','git_path'));
+        cmd=sprintf('"%s" rev-parse HEAD',getpref(mfilename,'git'));
         [~,r]=dos(cmd);
         if nargout==1
             varargout{1}=r;
@@ -134,33 +109,17 @@ switch command
         %% Bash
         % Not actually GitExtensions, but the GitBash from the Git package. Quick
         % way to jump to the actual bash shell.
-        cmd=sprintf('"%s"  --login -i &',getpref('git','sh_path'));
+        cmd=sprintf('"%s"  --login -i &',getpref(mfilename,'sh'));
         dos(cmd);
         return;
-    case 'checkout'
-        if strcmpi(CLOSE_ON_CHECKOUT,'ask')
-            button=questdlg('Close all open .m and .mdl files before checking out? This reduces post checkout errors and the chance that you will resave the current version in the branch you switch to','Close Open Files?','Yes','No','No');
-            if strcmpi(button,'yes')
-                closeall;
-            end
-        elseif CLOSE_ON_CHECKOUT %#ok<BDLGI>
-            closeall;
-        end
-    case 'commit'
-        try %#ok<TRYNC>
-            if strcmpi(SAVE_ON_COMMIT,'ask')
-                button=questdlg('Close all open .m and .mdl files before checking out? This reduces post checkout errors and the chance that you will resave the current version in the branch you switch to','Close Open Files?','Yes','No','No');
-                if strcmpi(button,'yes')
-                    saveall;
-                end
-            elseif SAVE_ON_COMMIT
-                saveall;
-            end
-        end
+    otherwise
+        cmd=sprintf('"%s" %s %s',getpref(mfilename,'git'),command,args);
+        [~,r]=dos(cmd,'-echo');
+        return;
 end
 
 %% For each input
-cmd=sprintf('"%s" "%s" "%s"&',getpref('git','gitExtensions_path'),command,argument);
+cmd=sprintf('"%s" %s "%s"&',getpref(mfilename,'gitExtensions'),command,args);
 dos(cmd);
 end
 
@@ -185,35 +144,4 @@ else
 end
 % construct absulute filename
 absolutepath = fullfile(Directory,[filename,ext]);
-end
-
-function saveall
-try % Don't fail the whole commit because something went wrong here.
-    % Save all simulink models & open .m files before commiting.
-    if exists('.git','directory') % If we are in a working directory.
-        % Get all open Simulink models.
-        openSystems=find_system('SearchDepth',0);
-        % Get all M-files open in the Matlab Editor.
-        openM=char(com.mathworks.mlservices.MLEditorServices.builtinGetOpenDocumentNames);
-        for i=1:numel(openSystems)
-            try %#ok<*TRYNC> % Try to save every system, if it fails continue on to the next one.
-                save_system(openSystems{1})
-            end
-        end
-        for i=1:size(openM,1)
-            try % Try to save every M-file, if one fails move
-                % on to the next one.
-                com.mathworks.mlservices.MLEditorServices.saveDocument(strtrim(openM(i,:)));
-            end
-        end
-    end
-end
-end
-
-function closeall
-try % Don't fail the whole checkout because this fails.
-    % Close all simulink models and *.m files before checkout
-    bdclose('all');
-    com.mathworks.mlservices.MLEditorServices.closeAll;
-end
 end
