@@ -87,7 +87,7 @@ end
 % to the arguments before calling GitExtensions.exe
 switch command
     % Arguments that take the [file] or [path] optonally.
-    case {'browse','blame','clone','filehistory','fileeditor','init','openrepo','revert'}
+    case {'browse','blame','clone','commit','filehistory','fileeditor','init','openrepo','revert'}
         exec=getpref(mfilename,'gitExtensions');
         if nargin<2
             args=pwd;
@@ -95,10 +95,9 @@ switch command
             args=abspath(varargin{2});
         end
     case {'about','add','apply','applypatch','branch','checkout','checkoutbranch','checkoutrevision','cherry', ...
-            'cleanup','commit','formatpatch','gitbash','gitignore','merge','mergeconflicts','mergetool','pull','push',...
+            'cleanup','formatpatch','gitbash','gitignore','merge','mergeconflicts','mergetool','pull','push',...
             'rebase','remotes','searchfile','settings','stash','synchronize','tag','viewdiff'}
         % The rest of the git commands.
-        exec=getpref(mfilename,'gitExtensions');
     case {'lasthash'}
         cmd=sprintf('"%s" rev-parse HEAD',getpref(mfilename,'git'));
         [~,r]=dos(cmd);
@@ -122,7 +121,11 @@ switch command
 end
 
 %% For each input
-cmd=sprintf('"%s" %s "%s"&',getpref(mfilename,'gitExtensions'),command,args);
+if isempty(args)
+    cmd=sprintf('"%s" %s&',getpref(mfilename,'gitExtensions'),command);
+else
+    cmd=sprintf('"%s" %s "%s"&',getpref(mfilename,'gitExtensions'),command,args);
+end
 dos(cmd);
 end
 
