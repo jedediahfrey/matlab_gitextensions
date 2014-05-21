@@ -14,14 +14,13 @@ function varargout=git(varargin)
 %   git add [GitExtensions Dialog]
 %   git commit [GitExtensions Dialog]
 %
+% Additionally it offers these command aliases:
+%   lasthash      - returns the last commit hash.
+%   currbranch    - returns the current branch
+%   currentbranch - returns the current branch
+%
 % See also: http://code.google.com/p/gitextensions/,
 % http://git-scm.com/documentation
-
-% Edit these variables to suit your workflow.
-% Valid Options: true, false or 'ask'.
-SAVE_ON_COMMIT=true;    % Before a 'git commit' all open *.m and *.mdl files are saved so that they are in the commit
-% 'true', 'false', or 'ask'.
-CLOSE_ON_CHECKOUT='ask'; % Anytime 'git checkout' is run it closes all *.m and *.mdl files so that they aren't open when they get switched by the checkout.
 
 % GitExtensions is Windows only.
 if ~ispc
@@ -37,103 +36,144 @@ paths.sh={'C:\Program Files (x86)\Git\bin\sh.exe', ...
 paths.git={'C:\Program Files (x86)\Git\bin\git.exe',...
     'C:\Program Files\Git\bin\git.exe',...
     'C:\Program Files\MSysGit\bin\git.exe'};
-% Required programs
+%% Required programs
+% Get program names
 progs=fieldnames(paths);
+% Reshape program names so it can be looped through
 progs=reshape(progs,1,numel(progs));
+% Get the current name of the script
 script=mfilename;
+% For each of the programs
 for prog=progs
+    % Pull current program name out of the cell array
     prog=prog{1};
     if ~ispref(script,prog) || ... % if the preference is not set.
             ~exist(getpref(script,prog),'file') % or the old path no longer exists
+        % Set the found variable to false (the program hasn't been found yet)
         found=false;
+        % Reshape the cell array so it can be looped through
+        paths.(prog)=reshape(paths.(prog),1,numel(paths.(prog)));
+        % For each of the paths
         for path=paths.(prog)
-            if exist(path{1},'file')
-                setpref(script,prog,path{1});
-                [~,n,e]=fileparts(path{1});
-                fprintf('%s%s found and preferences saved (%s)\n',n,e,path{1});
+            % Pull current path out of the single cell array
+            path=path{1};
+            % If the path exists!
+            if exist(path,'file')
+                % Set the path to the program as a preference for the script
+                setpref(script,prog,path);
+                % Get each of the parts
+                [~,n,e]=fileparts(path);
+                % Echo to the user that it has been found.
+                fprintf('%s%s found and preferences saved (%s)\n',n,e,path);
+                % Set the found variable to true.
                 found=true;
+                % Break the loop.
                 break;
             end
         end
+        % If it hasn't been found by now.
         if ~found
+            % Get the file name
             [~,n]=fileparts(path{1});
+            % Prompt the user to select the file
             [filename, pathname] = uigetfile(n, sprintf('%s not automatically found. Please select it:',n));
+            % If the user cancels
             if filename==0
+                % Throw a warning and exit.
                 warning('git:canceled','User canceled executable selection');
                 return;
             end
+            % Otherwise save the full path to the file.
             setpref(script,prog,fullfile(pathname,filename));
         end
     end
 end
-% If nothing is given, show help and warn that a command is needed.
+
+%% If nothing is given, show help and warn that a command is needed.
 if nargin<1
     help(mfilename);
     warning('git:command','You must give at least one command\nSee: http://git-scm.com/documentation');
     return;
 end
-% Else grab the first input as a command.
+
+%% Command processing
+% Grab the first input as a command.
 command=varargin{1};
+% Set command arguments to nothing.
 args='';
-for i=2:nargin
-    % If the input argument has spaces, escape it
-    if strfind(varargin{i},' ')
-        args=sprintf('%s "%s"',args,varargin{i});
-    else
-        args=sprintf('%s %s',args,varargin{i});
-    end
-end
 % List of known working commands and any modifications that must be made to
 % to the arguments before calling GitExtensions.exe
 switch command
-    % Arguments that take the [file] or [path] optonally.
+    % Arguments that take the [file] or [path] command
     case {'browse','blame','clone','commit','filehistory','fileeditor','init','openrepo','revert'}
-        exec=getpref(mfilename,'gitExtensions');
+        % If no extra argument is given, use the current directory.
         if nargin<2
             args=pwd;
-        else
+        else % Otherwise pass the absolute path
             args=abspath(varargin{2});
         end
+        % The rest of the git commands that GitExtensions accepts
     case {'about','add','apply','applypatch','branch','checkout','checkoutbranch','checkoutrevision','cherry', ...
             'cleanup','formatpatch','gitbash','gitignore','merge','mergeconflicts','mergetool','pull','push',...
             'rebase','remotes','searchfile','settings','stash','synchronize','tag','viewdiff'}
-        % The rest of the git commands.
+        % Our custom alias for returning the last hash
     case {'lasthash'}
-        cmd=sprintf('"%s" rev-parse HEAD',getpref(mfilename,'git'));
-        [~,r]=dos(cmd);
+        % Command to get the current hash.
+        cmd=sprintf('"%s" log --max-count=1 --format=%%H',getpref(mfilename,'git'));
+        % Run the command
+        [~,hash]=dos(cmd);
+        % Replace the newline with nothing.
+        hash=strrep(hash,char(10),'');
+        % If this is used with a return send it to varargout, otherwise print
+        % it.
         if nargout==1
-            varargout{1}=r;
+            varargout{1}=hash;
         else
-            disp(r);
+            disp(hash);
+        end
+        return;
+    case {'currbranch','currentbranch'}
+        % Command to get the current branch
+        cmd=sprintf('"%s" rev-parse --abbrev-ref HEAD',getpref('git','git'));
+        [~,branch]=dos(cmd);
+        % Replace the newline with nothing.
+        branch=strrep(branch,char(10),'');
+        % If this is used with a return send it to varargout, otherwise print
+        % it.
+        if nargout==1
+            varargout{1}=branch;
+        else
+            disp(branch);
         end
         return;
     case 'bash'
         %% Bash
         % Not actually GitExtensions, but the GitBash from the Git package. Quick
         % way to jump to the actual bash shell.
-        cmd=sprintf('"%s"  --login -i &',getpref(mfilename,'sh'));
+        cmd=sprintf('"%s" --login -i &',getpref(mfilename,'sh'));
         dos(cmd);
         return;
     otherwise
+        % Add additional inputs as arguments.
+        for i=2:nargin
+            args=sprintf('%s "%s"',args,varargin{i});
+        end
+        % Directly call the git command and return the output.
         cmd=sprintf('"%s" %s %s',getpref(mfilename,'git'),command,args);
         [~,r]=dos(cmd,'-echo');
         return;
 end
-
-%% For each input
-if isempty(args)
-    cmd=sprintf('"%s" %s&',getpref(mfilename,'gitExtensions'),command);
-else
-    cmd=sprintf('"%s" %s "%s"&',getpref(mfilename,'gitExtensions'),command,args);
-end
+% Process the command.
+cmd=sprintf('"%s" %s %s&',getpref(mfilename,'gitExtensions'),command,args);
 dos(cmd);
 end
 
-% Get the absolute path of a file.
+%% AbsPath
+% Get the absolute path for the given partial path.
 function [absolutepath]=abspath(partialpath)
 % Taken from xlswrite.
 % parse partial path into path parts
-[pathname filename ext] = fileparts(partialpath);
+[pathname,filename,ext] = fileparts(partialpath);
 % no path qualification is present in partial path; assume parent is pwd, except
 % when path string starts with '~' or is identical to '~'.
 if isempty(pathname) && isempty(strmatch('~',partialpath))
