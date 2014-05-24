@@ -207,12 +207,18 @@ switch command
         % Force passing the options on to the command line version of git
         % instead of git extensions.
         
+        % the command is the 2nd argument (since --force was the first)
+        command=varargin{2};
         % Add additional inputs as arguments.
-        for i=2:nargin
-            args=sprintf('%s "%s"',args,varargin{i});
+        for i=3:nargin
+            if isempty(strfind(varargin{i},' '))
+                args=sprintf('%s %s',args,varargin{i});
+            else
+                args=sprintf('%s "%s"',args,varargin{i});
+            end
         end
         % Directly call the git command and return the output.
-        cmd=sprintf('"%s" %s',getpref(mfilename,'git'),args);
+        cmd=sprintf('"%s" %s %s',getpref(mfilename,'git'),command,args);
         if nargout==1
             [~,varargout{1}]=dos(cmd);
         else
