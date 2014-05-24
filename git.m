@@ -5,24 +5,26 @@ function varargout=git(varargin)
 % manipulate git from the MATLAB prompt but also like the added usefullness
 % of the GitExtensions GUI.
 %
-% If you want a full command line version there are other
-% wrappers for just the git command.
-%
-% Examples:
-%   git checkout [GitExtensions Dialog]
-%   edit newfile.m [M-File Editor] Add text.
-%   git add [GitExtensions Dialog]
-%   git commit [GitExtensions Dialog]
+% To pass arguments directly to the git command line (bypassing GitExtensions)
+% use --force as the first argument.
 %
 % Additionally it offers these command aliases:
 %   lasthash      - returns the last commit hash.
-%                       alias for git 
+%                       alias for git
 %   currbranch    - returns the current branch
 %                       alias for git rev-parse --abbrev-ref HEAD
 %   currentbranch - returns the current branch
 %                       alias for git rev-parse --abbrev-ref HEAD
 %   isclean       - returns true/false if the current branch is clean
 %                       alias for git status --exit-code --ignore-submodules
+%
+% Examples:
+%   git checkout % [GitExtensions Dialog]
+%   edit newfile.m % [M-File Editor] Add text.
+%   git add % [GitExtensions Dialog]
+%   git commit % [GitExtensions Dialog]
+%
+%   git --force commit -am 'This is a direct commit bypassing the GitExtensions dialog'
 %
 % See also: http://code.google.com/p/gitextensions/,
 % http://git-scm.com/documentation
@@ -34,15 +36,15 @@ function varargout=git(varargin)
 
 % Copyright (c) 2014, Jed Frey
 % All rights reserved.
-% 
+%
 % Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-% 
+%
 % 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-% 
+%
 % 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-% 
+%
 % 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-% 
+%
 % THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 if ~ispc
@@ -153,7 +155,7 @@ switch command
         else
             disp(hash);
         end
-        return;    
+        return;
     case {'shorthash'}
         % Command to get the current hash.
         cmd=sprintf('"%s" log --max-count=1 --pretty=format:%%h',getpref(mfilename,'git'));
@@ -207,28 +209,37 @@ switch command
         % Force passing the options on to the command line version of git
         % instead of git extensions.
         
-        % the command is the 2nd argument (since --force was the first)
+        % The command is the 2nd argument (since --force was the first)
         command=varargin{2};
         % Add additional inputs as arguments.
         for i=3:nargin
             if isempty(strfind(varargin{i},' '))
                 args=sprintf('%s %s',args,varargin{i});
             else
+                % If the argument contains spaces, wrap it with double quotes.
                 args=sprintf('%s "%s"',args,varargin{i});
             end
         end
         % Directly call the git command and return the output.
         cmd=sprintf('"%s" %s %s',getpref(mfilename,'git'),command,args);
+        % If there is a return argument
         if nargout==1
+            % Set the output to the result of the command.
             [~,varargout{1}]=dos(cmd);
         else
+            % Otherwise echo it to the Matlab window
             dos(cmd,'-echo');
         end
         return;
     otherwise
         % Add additional inputs as arguments.
         for i=2:nargin
-            args=sprintf('%s "%s"',args,varargin{i});
+            if isempty(strfind(varargin{i},' '))
+                args=sprintf('%s %s',args,varargin{i});
+            else
+                % If the argument contains spaces, wrap it with double quotes.
+                args=sprintf('%s "%s"',args,varargin{i});
+            end
         end
         % Directly call the git command and return the output.
         cmd=sprintf('"%s" %s %s',getpref(mfilename,'git'),command,args);
