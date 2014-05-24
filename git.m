@@ -16,7 +16,7 @@ function varargout=git(varargin)
 %   currentbranch - returns the current branch
 %                       alias for git rev-parse --abbrev-ref HEAD
 %   isclean       - returns true/false if the current branch is clean
-%                       alias for git status --exit-code --ignore-submodules
+%                       alias for git diff-files --exit-code --ignore-submodules
 %
 % Examples:
 %   git checkout % [GitExtensions Dialog]
@@ -187,7 +187,7 @@ switch command
         return;
     case {'isclean'}
         % Command to get the current branch
-        cmd=sprintf('"%s" diff --exit-code --ignore-submodules',getpref('git','git'));
+        cmd=sprintf('"%s" diff-files --exit-code --ignore-submodules',getpref('git','git'));
         [notclean,~]=dos(cmd);
         isclean=logical(~notclean);
         % If this is used with a return send it to varargout, otherwise print
