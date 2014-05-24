@@ -16,8 +16,13 @@ function varargout=git(varargin)
 %
 % Additionally it offers these command aliases:
 %   lasthash      - returns the last commit hash.
+%                       alias for git 
 %   currbranch    - returns the current branch
+%                       alias for git rev-parse --abbrev-ref HEAD
 %   currentbranch - returns the current branch
+%                       alias for git rev-parse --abbrev-ref HEAD
+%   isclean       - returns true/false if the current branch is clean
+%                       alias for git status --exit-code --ignore-submodules
 %
 % See also: http://code.google.com/p/gitextensions/,
 % http://git-scm.com/documentation
@@ -136,7 +141,22 @@ switch command
         % Our custom alias for returning the last hash
     case {'lasthash'}
         % Command to get the current hash.
-        cmd=sprintf('"%s" log --max-count=1 --format=%%H',getpref(mfilename,'git'));
+        cmd=sprintf('"%s" log --max-count=1 --pretty=%%H',getpref(mfilename,'git'));
+        % Run the command
+        [~,hash]=dos(cmd);
+        % Replace the newline with nothing.
+        hash=strrep(hash,char(10),'');
+        % If this is used with a return send it to varargout, otherwise print
+        % it.
+        if nargout==1
+            varargout{1}=hash;
+        else
+            disp(hash);
+        end
+        return;    
+    case {'shorthash'}
+        % Command to get the current hash.
+        cmd=sprintf('"%s" log --max-count=1 --pretty=format:%%h',getpref(mfilename,'git'));
         % Run the command
         [~,hash]=dos(cmd);
         % Replace the newline with nothing.
@@ -163,12 +183,41 @@ switch command
             disp(branch);
         end
         return;
+    case {'isclean'}
+        % Command to get the current branch
+        cmd=sprintf('"%s" diff --exit-code --ignore-submodules',getpref('git','git'));
+        [notclean,~]=dos(cmd);
+        isclean=logical(~notclean);
+        % If this is used with a return send it to varargout, otherwise print
+        % it.
+        if nargout==1
+            varargout{1}=isclean;
+        else
+            disp(isclean);
+        end
+        return;
     case 'bash'
         %% Bash
         % Not actually GitExtensions, but the GitBash from the Git package. Quick
         % way to jump to the actual bash shell.
         cmd=sprintf('"%s" --login -i &',getpref(mfilename,'sh'));
         dos(cmd);
+        return;
+    case '--force'
+        % Force passing the options on to the command line version of git
+        % instead of git extensions.
+        
+        % Add additional inputs as arguments.
+        for i=2:nargin
+            args=sprintf('%s "%s"',args,varargin{i});
+        end
+        % Directly call the git command and return the output.
+        cmd=sprintf('"%s" %s',getpref(mfilename,'git'),args);
+        if nargout==1
+            [~,varargout{1}]=dos(cmd);
+        else
+            dos(cmd,'-echo');
+        end
         return;
     otherwise
         % Add additional inputs as arguments.
@@ -177,7 +226,11 @@ switch command
         end
         % Directly call the git command and return the output.
         cmd=sprintf('"%s" %s %s',getpref(mfilename,'git'),command,args);
-        [~,r]=dos(cmd,'-echo');
+        if nargout==1
+            [~,varargout{1}]=dos(cmd);
+        else
+            dos(cmd,'-echo');
+        end
         return;
 end
 % Process the command.
